@@ -10,13 +10,15 @@ from bs4 import BeautifulSoup
 import requests
 
 
-DEFAULT_STATUS_URL = 'http://192.168.100.1/RgConnect.asp'
+class ArrisSB6183():
 
+    STATUS_URL = 'http://192.168.100.1/RgConnect.asp'
 
-class SB6183Modem():
-
-    def __init__(self, modem_url, output_format):
-        self.modem_url = modem_url
+    def __init__(self, output_format, modem_url=None):
+        if modem_url:
+            self.modem_url = modem_url
+        else:
+            self.modem_url = self.STATUS_URL
         self.output_format = output_format
 
     def parse_modem(self):
@@ -113,12 +115,11 @@ class SB6183Modem():
 
 def main():
     parser = argparse.ArgumentParser(description="A tool to scrape modem statistics")
-    parser.add_argument('--url', default=DEFAULT_STATUS_URL,
-                        help="URL to modem status page")
+    parser.add_argument('--url', help="URL to modem status page")
     parser.add_argument('--format', default='influx', choices=('influx', 'json'),
                         help='Output format, default of "influx"')
     args = parser.parse_args()
-    collector = SB6183Modem(args.url, args.format)
+    collector = ArrisSB6183(output_format=args.format, modem_url=args.url)
     collector.run()
 
 
