@@ -1,16 +1,51 @@
 #!/usr/bin/env python3
 
 import argparse
+import base64
 import json
 import math
 import sys
+from collections import namedtuple
 from datetime import datetime
 
 from bs4 import BeautifulSoup
 import requests
 
 
+DownstreamChannel = namedtuple('DownstreamChannel', 'channel_id frequency power snr corrected uncorrectables')
+UpstreamChannel = namedtuple('UpstreamChannel', 'channel_id frequency power snr')
+
+
+def str_map(value, fn):
+    if value:
+        return fn(value)
+    return value
+
+
+def downstream(channel_details):
+    channel_id = str_map(channel_details[0], int)
+    frequency = str_map(channel_details[1], float)
+    power = str_map(channel_details[2], float)
+    snr = str_map(channel_details[3], float)
+    corrected = str_map(channel_details[4], int)
+    uncorrectables = str_map(channel_details[5], int)
+    channel = DownstreamChannel(channel_id, frequency, power, snr, corrected, uncorrectables)
+    return channel
+
+
+def upstream(channel_details):
+    channel_id = str_map(channel_details[0], int)
+    frequency = str_map(channel_details[1], float)
+    power = str_map(channel_details[2], float)
+    snr = str_map(channel_details[3], float)
+    channel = UpstreamChannel(channel_id, frequency, power, snr)
+    return channel
+
+
 class ArrisSB6183():
+    """
+    Connection statistics for Arris SB6183 cable modem.
+    """
 
     STATUS_URL = 'http://192.168.100.1/RgConnect.asp'
 
@@ -113,13 +148,174 @@ class ArrisSB6183():
         self.output_modem_data(modem_stats)
 
 
+class CableModem:
+
+    STATUS_URL = None
+    AUTH_URL = None
+
+    def __init__(self, output_format, auth=None, modem_url=None):
+        if modem_url:
+            self.modem_url = modem_url
+        elif self.STATUS_URL:
+            self.modem_url = self.STATUS_URL
+        else:
+            raise RuntimeError("No status URL given")
+        self.auth = auth
+        self.session = requests.Session()
+        self.downstream_channels = []
+        self.upstream_channels = []
+
+    def run(self):
+        self._process_modem_status()
+        # self.output_modem_data(modem_stats)
+        return self.downstream_channels, self.upstream_channels
+
+    def format_modem_data(self, output_format):
+        if output_format == 'json':
+            return self._format_json()
+        elif output_format == 'influx':
+            pass
+
+    def _format_json(self):
+        output_data = {
+            'downstream': self.downstream_channels,
+            'upstream': self.upstream_channels,
+        }
+        return json.dumps(output_data)
+
+    def _format_influx(self):
+
+        def format_channel():
+            tags = ['%s=%s' % (tag, value)
+                    for tag, value in point['tags'].items()]
+            fields = ['%s=%s' % (field, value)
+                        for field, value in point['fields'].items()]
+            line_protocol = '{measurement},{tags} {fields} {when}'.format(
+                measurement=point['measurement'], when=point['time'],
+                tags=','.join(tags), fields=','.join(fields))
+
+        output_data = []
+        for channel in self.downstream_channels:
+            pass
+        for channel in self.upstream_channels:
+            pass
+
+    def needs_authentication(self, page):
+        return False
+
+    def authenticate(self):
+        pass
+
+    def _process_modem_status(self):
+        page = self._fetch_status_page()
+        if self.needs_authentication(page):
+            self.authenticate()
+            page = self._fetch_status_page()
+            if self.needs_authentication(page):
+                raise RuntimeError("Failed to fetch status page: need authentication.")
+        self._parse_status_page(page)
+
+    def _fetch_status_page(self):
+        try:
+            resp = self.session.get(self.modem_url)
+            status_html = resp.content
+            resp.close()
+            soup = BeautifulSoup(status_html, 'html.parser')
+        except Exception as exc:
+            print('ERROR: Failed to get modem stats.  Aborting', file=sys.stderr)
+            print(exc, file=sys.stderr)
+            sys.exit(1)
+        return soup
+
+    def _parse_status_page(self, page):
+        tables = page.find_all("table")
+        for table in tables:
+            self._parse_table(table)
+
+    def _parse_table(self, table_element, row_parser=None):
+        table_data = []
+        for table_row in table_element.find_all('tr', recursive=False):
+            row_data = []
+            for row_column in table_row.find_all('td', recursive=False):
+                row_data.append(row_column.string)
+            table_data.append(row_data)
+        return table_data
+
+
+class MotorolaMB7621(CableModem):
+    """
+    Connection statistics for Motorola MB7621 cable modem.
+    """
+
+    STATUS_URL = 'http://192.168.100.1/MotoConnection.asp'
+    AUTH_URL = 'http://192.168.100.1/goform/login'
+
+    def needs_authentication(self, page):
+        # Login page title:
+        # <title>Motorola Cable Modem : Login</title> 
+        return 'Login' in page.title.string
+
+    def authenticate(self):
+        # loginUsername=NAME
+        # loginPassword=BASE64_PASS
+        if not self.auth:
+            return
+        username, password = self.auth
+        password_bytes = password.encode('utf-8')
+        login_auth = {
+            'loginUsername': username,
+            'loginPassword': base64.b64encode(password_bytes).decode('utf-8'),
+        }
+        self.session.post(self.AUTH_URL, data=login_auth)
+
+    def _parse_status_page(self, page):
+        tables = page.find_all('table', class_='moto-table-content')
+        for table in tables:
+            table_data = self._parse_table(table)
+            if not table_data:
+                continue
+            header = table_data[0]
+            header_name = header[0]
+            if header_name != '\xa0\xa0\xa0Channel':
+                continue
+            # The downstream table has nine columns while upstream table has
+            # seven columns. Use that to tell them apart but check the columns
+            # have not been re-arranged.
+            if len(header) == 9:
+                column_headers = ["Channel ID", "Freq. (MHz)", "Pwr (dBmV)",
+                                  "SNR (dB)", "Corrected", "Uncorrected"]
+                if header[3:] != column_headers:
+                    print("WARNING: Downstream table did not match.")
+                    continue
+                for row in table_data[1:]:
+                    if row[1] != "Locked" or row[0] == "Total":
+                        continue
+                    channel_data = downstream(row[3:])
+                    self.downstream_channels.append(channel_data)
+            elif len(header) == 7:
+                column_headers = ["Channel ID", "Symb. Rate (Ksym/sec)",
+                                  "Freq. (MHz)", "Pwr (dBmV)"]
+                if header[3:] != column_headers:
+                    print("WARNING: Upstream table did not match.")
+                    continue
+                for row in table_data[1:]:
+                    # This modem doesn't provide the SNR field and skip the
+                    # symbol rate column.
+                    if row[1] != "Locked":
+                        continue
+                    input_data = [row[3]] + row[5:] + [None]
+                    channel_data = upstream(input_data)
+                    self.upstream_channels.append(channel_data)
+
+
 def main():
     parser = argparse.ArgumentParser(description="A tool to scrape modem statistics")
     parser.add_argument('--url', help="URL to modem status page")
     parser.add_argument('--format', default='influx', choices=('influx', 'json'),
                         help='Output format, default of "influx"')
     args = parser.parse_args()
-    collector = ArrisSB6183(output_format=args.format, modem_url=args.url)
+    # collector = ArrisSB6183(output_format=args.format, modem_url=args.url)
+    collector = MotorolaMB7621(output_format=args.format, modem_url=args.url)
     collector.run()
 
 
