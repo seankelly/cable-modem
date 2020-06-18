@@ -67,7 +67,8 @@ def test_modem(requests_mock):
     requests_mock.get('http://192.168.100.1/login.asp', text=mb7621_request)
     requests_mock.post('http://192.168.100.1/goform/login', text=mb7621_login)
     collector = cable_modem_stats.MotorolaMB7621(auth=page_status['auth'])
-    downstream, upstream = collector.run()
+    collector.run()
+    downstream, upstream = collector.downstream_channels, collector.upstream_channels
 
     assert len(downstream) == 24
     downstream_actual = (

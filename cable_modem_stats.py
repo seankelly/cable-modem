@@ -169,7 +169,6 @@ class CableModem:
     def run(self):
         self._process_modem_status()
         # self.output_modem_data(modem_stats)
-        return self.downstream_channels, self.upstream_channels
 
     def format_modem_data(self, output_format):
         if output_format == 'json':
