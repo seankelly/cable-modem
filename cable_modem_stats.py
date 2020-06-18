@@ -153,7 +153,7 @@ class CableModem:
     STATUS_URL = None
     AUTH_URL = None
 
-    def __init__(self, output_format, auth=None, modem_url=None):
+    def __init__(self, auth=None, modem_url=None):
         if modem_url:
             self.modem_url = modem_url
         elif self.STATUS_URL:
