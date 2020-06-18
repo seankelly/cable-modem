@@ -150,6 +150,8 @@ class ArrisSB6183():
 
 class CableModem:
 
+    FULL_NAME = None
+    SHORT_NAME = None
     STATUS_URL = None
     AUTH_URL = None
 
@@ -261,6 +263,8 @@ class MotorolaMB7621(CableModem):
     Connection statistics for Motorola MB7621 cable modem.
     """
 
+    FULL_NAME = "Motorola MB7621"
+    SHORT_NAME = "MB7621"
     STATUS_URL = 'http://192.168.100.1/MotoConnection.asp'
     AUTH_URL = 'http://192.168.100.1/goform/login'
 
