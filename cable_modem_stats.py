@@ -175,7 +175,7 @@ class CableModem:
         if output_format == 'json':
             return self._format_json()
         elif output_format == 'influx':
-            pass
+            return self._format_influx()
 
     def _format_json(self):
         output_data = {
@@ -185,21 +185,31 @@ class CableModem:
         return json.dumps(output_data)
 
     def _format_influx(self):
+        """Format all channels into Influx line protocol."""
 
-        def format_channel():
+        def format_channel(measurement, current_ns, channel_data, **tags):
+            """Format one channel into Influx line protocol."""
             tags = ['%s=%s' % (tag, value)
-                    for tag, value in point['tags'].items()]
-            fields = ['%s=%s' % (field, value)
-                        for field, value in point['fields'].items()]
+                    for tag, value in tags.items()]
+            fields = ['%s=%s' % (field, getattr(channel_data, field))
+                      for field in channel_data._fields]
             line_protocol = '{measurement},{tags} {fields} {when}'.format(
-                measurement=point['measurement'], when=point['time'],
+                measurement=measurement, when=current_ns,
                 tags=','.join(tags), fields=','.join(fields))
+            return line_protocol
 
+        current_time = math.trunc(self.time.timestamp())
+        current_ns = '{}000000000'.format(current_time)
         output_data = []
-        for channel in self.downstream_channels:
-            pass
-        for channel in self.upstream_channels:
-            pass
+        for number, channel in enumerate(self.downstream_channels):
+            output_data.append(
+                format_channel('cable_modem', current_ns, channel,
+                               direction='downstream', channel=number+1))
+        for number, channel in enumerate(self.upstream_channels):
+            output_data.append(
+                format_channel('cable_modem', current_ns, channel,
+                               direction='upstream', channel=number+1))
+        return '\n'.join(output_data)
 
     def needs_authentication(self, page):
         return False
