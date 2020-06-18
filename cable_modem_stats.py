@@ -164,6 +164,7 @@ class CableModem:
         self.session = requests.Session()
         self.downstream_channels = []
         self.upstream_channels = []
+        self.time = None
 
     def run(self):
         self._process_modem_status()
@@ -213,7 +214,11 @@ class CableModem:
             page = self._fetch_status_page()
             if self.needs_authentication(page):
                 raise RuntimeError("Failed to fetch status page: need authentication.")
+        self._record_when()
         self._parse_status_page(page)
+
+    def _record_when(self):
+        self.time = datetime.now()
 
     def _fetch_status_page(self):
         try:
