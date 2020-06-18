@@ -130,7 +130,7 @@ class ArrisSB6183():
         return series
 
     def output_modem_data(self, series):
-        if self.output_format == 'influx':
+        if self.output_format == 'influxdb':
             for point in series:
                 tags = ['%s=%s' % (tag, value)
                         for tag, value in point['tags'].items()]
@@ -173,8 +173,8 @@ class CableModem:
     def format_modem_data(self, output_format):
         if output_format == 'json':
             return self._format_json()
-        elif output_format == 'influx':
-            return self._format_influx()
+        elif output_format == 'influxdb':
+            return self._format_influxdb()
 
     def _format_json(self):
         output_data = {
@@ -183,11 +183,11 @@ class CableModem:
         }
         return json.dumps(output_data)
 
-    def _format_influx(self):
-        """Format all channels into Influx line protocol."""
+    def _format_influxdb(self):
+        """Format all channels into InfluxDB line protocol."""
 
         def format_channel(measurement, current_ns, channel_data, **tags):
-            """Format one channel into Influx line protocol."""
+            """Format one channel into InfluxDB line protocol."""
             tags = ['%s=%s' % (tag, value)
                     for tag, value in tags.items()]
             fields = ['%s=%s' % (field, getattr(channel_data, field))
@@ -325,8 +325,8 @@ class MotorolaMB7621(CableModem):
 def main():
     parser = argparse.ArgumentParser(description="A tool to scrape modem statistics")
     parser.add_argument('--url', help="URL to modem status page")
-    parser.add_argument('--format', default='influx', choices=('influx', 'json'),
-                        help='Output format, default of "influx"')
+    parser.add_argument('--format', default='influxdb', choices=('influxdb', 'json'),
+                        help='Output format, default of "influxdb"')
     args = parser.parse_args()
     # collector = ArrisSB6183(output_format=args.format, modem_url=args.url)
     collector = MotorolaMB7621(output_format=args.format, modem_url=args.url)

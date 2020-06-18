@@ -49,14 +49,14 @@ class TestOutput:
             assert actual[2] == expected.power
             assert actual[3] == expected.snr
 
-    def test_output_influx(self):
+    def test_output_influxdb(self):
         modem = cable_modem_stats.CableModem(modem_url='http://example.com')
         modem._record_when()
         modem.downstream_channels = self.downstream
         modem.upstream_channels = self.upstream
-        output_influx = modem.format_modem_data('influx')
-        assert output_influx is not None
-        output = output_influx.split('\n')
+        output_influxdb = modem.format_modem_data('influxdb')
+        assert output_influxdb is not None
+        output = output_influxdb.split('\n')
         assert len(output) == 6
         channel_down = output[0].split()
         measurement, tags = channel_down[0].split(',', 1)
