@@ -1,4 +1,6 @@
 import base64
+import itertools
+import json
 import math
 import os.path
 import urllib.parse
@@ -7,6 +9,77 @@ import pytest
 import requests
 
 import cable_modem_stats
+
+
+class TestOutput:
+
+    downstream = (
+        cable_modem_stats.DownstreamChannel(1, 783.0, 8.1, 39.6, 0, 0),
+        cable_modem_stats.DownstreamChannel(2, 789.0, 9.6, 40.5, 535, 469),
+        cable_modem_stats.DownstreamChannel(5, 807.0, 8.7, 39.2, 0, 0),
+        cable_modem_stats.DownstreamChannel(8, 825.0, 8.6, 39.3, 0, 896),
+    )
+    upstream = (
+        cable_modem_stats.UpstreamChannel(1, 19.6, 36.2, 40.0),
+        cable_modem_stats.UpstreamChannel(3, 26.0, 37.6, 40.0),
+    )
+
+    def test_output_json(self):
+        modem = cable_modem_stats.CableModem(modem_url='http://example.com')
+        modem._record_when()
+        modem.downstream_channels = self.downstream
+        modem.upstream_channels = self.upstream
+        output_json = modem.format_modem_data('json')
+        assert output_json is not None
+        output = json.loads(output_json)
+        assert 'downstream' in output
+        assert len(output['downstream']) == 4
+        assert 'upstream' in output
+        assert len(output['upstream']) == 2
+        for actual, expected in itertools.zip_longest(output['downstream'], self.downstream):
+            assert actual[0] == expected.channel_id
+            assert actual[1] == expected.frequency
+            assert actual[2] == expected.power
+            assert actual[3] == expected.snr
+            assert actual[4] == expected.corrected
+            assert actual[5] == expected.uncorrectables
+        for actual, expected in itertools.zip_longest(output['upstream'], self.upstream):
+            assert actual[0] == expected.channel_id
+            assert actual[1] == expected.frequency
+            assert actual[2] == expected.power
+            assert actual[3] == expected.snr
+
+    def test_output_influx(self):
+        modem = cable_modem_stats.CableModem(modem_url='http://example.com')
+        modem._record_when()
+        modem.downstream_channels = self.downstream
+        modem.upstream_channels = self.upstream
+        output_influx = modem.format_modem_data('influx')
+        assert output_influx is not None
+        output = output_influx.split('\n')
+        assert len(output) == 6
+        channel_down = output[0].split()
+        measurement, tags = channel_down[0].split(',', 1)
+        assert measurement == 'cable_modem'
+        # This can be in any order before Python 3.7.
+        tags_dict = dict(element.split('=', 1) for element in tags.split(','))
+        assert tags_dict == {'channel': '1', 'direction': 'downstream'}
+        for actual, expected in itertools.zip_longest(output[:4], self.downstream):
+            _tags, fields, _time = actual.split()
+            expected_fields = ','.join('%s=%s' % (field, getattr(expected, field))
+                                       for field in expected._fields)
+            assert fields == expected_fields
+
+        channel_up = output[5].split()
+        measurement, tags = channel_up[0].split(',', 1)
+        assert measurement == 'cable_modem'
+        tags_dict = dict(element.split('=', 1) for element in tags.split(','))
+        assert tags_dict == {'direction': 'upstream', 'channel': '2'}
+        for actual, expected in itertools.zip_longest(output[4:], self.upstream):
+            _tags, fields, _time = actual.split()
+            expected_fields = ','.join('%s=%s' % (field, getattr(expected, field))
+                                       for field in expected._fields)
+            assert fields == expected_fields
 
 
 def test_modem(requests_mock):
