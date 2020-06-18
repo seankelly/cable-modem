@@ -333,7 +333,7 @@ def main():
                         help='Output format, default of "influxdb"')
     args = parser.parse_args()
     # collector = ArrisSB6183(output_format=args.format, modem_url=args.url)
-    collector = MotorolaMB7621(output_format=args.format, modem_url=args.url)
+    collector = MotorolaMB7621(modem_url=args.url)
     collector.run()
 
 
