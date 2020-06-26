@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import inspect
 import json
 import math
 import sys
@@ -326,15 +327,61 @@ class MotorolaMB7621(CableModem):
                     self.upstream_channels.append(channel_data)
 
 
+class ModemList:
+
+    def __init__(self):
+        self.modems = []
+        self._build_list()
+
+    def _build_list(self):
+        members = inspect.getmembers(sys.modules[__name__])
+        modems = []
+        for name, obj in members:
+            if hasattr(obj, 'FULL_NAME') and hasattr(obj, 'SHORT_NAME'):
+                full_name = obj.FULL_NAME
+                short_name = obj.SHORT_NAME
+                if full_name and short_name:
+                    self.modems.append((obj, full_name, short_name))
+
+    def available_modems(self):
+        output = ["Supported modems:"]
+        for _, full_name, _short_name in self.modems:
+            output.append("  %s" % full_name)
+        return '\n'.join(output)
+
+    def find_modem(self, modem):
+        modem_map = {}
+        for obj, full_name, short_name in self.modems:
+            modem_map[full_name.lower()] = obj
+            modem_map[short_name.lower()] = obj
+        return modem_map.get(modem.lower())
+
+
 def main():
     parser = argparse.ArgumentParser(description="A tool to scrape modem statistics")
-    parser.add_argument('--url', help="URL to modem status page")
+    parser.add_argument('--list-modems', '-l', action='store_true',
+                        help="List supported modems")
+    parser.add_argument('--url', help="Override URL to modem status page")
     parser.add_argument('--format', default='influxdb', choices=('influxdb', 'json'),
                         help='Output format, default of "influxdb"')
+    parser.add_argument('modem', default=None, nargs='?',
+                        help="Modem to collect statistics")
     args = parser.parse_args()
-    # collector = ArrisSB6183(output_format=args.format, modem_url=args.url)
-    collector = MotorolaMB7621(modem_url=args.url)
-    collector.run()
+
+    modems = ModemList()
+    if args.list_modems:
+        print(modems.available_modems())
+    elif args.modem is None:
+        print("Must use either --list-modems or modem")
+        sys.exit(1)
+    else:
+        modem_class = modems.find_modem(args.modem)
+        if modem_class:
+            collector = modem_class(modem_url=args.url)
+            collector.run()
+        else:
+            print("Could not find modem \"%s\"" % args.modem)
+            sys.exit(1)
 
 
 if __name__ == '__main__':
