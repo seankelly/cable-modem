@@ -12,6 +12,11 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import requests
 
+try:
+    import toml
+except ImportError:
+    toml = None
+
 
 DownstreamChannel = namedtuple('DownstreamChannel', 'channel_id frequency power snr corrected uncorrectables')
 UpstreamChannel = namedtuple('UpstreamChannel', 'channel_id frequency power snr')
@@ -357,10 +362,17 @@ class ModemList:
         return modem_map.get(modem.lower())
 
 
+def load_config(config_file_path):
+    if not toml:
+        print("toml library not available, cannot load config file")
+        return
+
+
 def main():
     parser = argparse.ArgumentParser(description="A tool to scrape modem statistics")
     parser.add_argument('--list-modems', '-l', action='store_true',
                         help="List supported modems")
+    parser.add_argument('--config', '-c', help="Config file for modem authentication")
     parser.add_argument('--url', help="Override URL to modem status page")
     parser.add_argument('--format', default='influxdb', choices=('influxdb', 'json'),
                         help='Output format, default of "influxdb"')
@@ -375,6 +387,8 @@ def main():
         print("Must use either --list-modems or modem")
         sys.exit(1)
     else:
+        if args.config:
+            config = load_config(args.config)
         modem_class = modems.find_modem(args.modem)
         if modem_class:
             collector = modem_class(modem_url=args.url)
