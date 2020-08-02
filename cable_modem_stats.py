@@ -366,6 +366,9 @@ def load_config(config_file_path):
     if not toml:
         print("toml library not available, cannot load config file")
         return
+    with open(config_file_path, 'r') as config_file:
+        config = toml.load(config_file)
+        return config
 
 
 def main():
