@@ -386,19 +386,28 @@ def main():
     modems = ModemList()
     if args.list_modems:
         print(modems.available_modems())
-    elif args.modem is None:
-        print("Must use either --list-modems or modem")
+        return
+    elif args.config:
+        config = load_config(args.config) or {}
+
+    modem = args.modem or config.get('modem')
+    if modem is None:
+        print("Must use either --list-modems or give modem")
         sys.exit(1)
     else:
-        if args.config:
-            config = load_config(args.config)
-        modem_class = modems.find_modem(args.modem)
-        if modem_class:
-            collector = modem_class(modem_url=args.url)
-            collector.run()
-        else:
-            print("Could not find modem \"%s\"" % args.modem)
+        modem_class = modems.find_modem(modem)
+        if not modem_class:
+            print("Could not find modem \"%s\"" % modem)
             sys.exit(1)
+        auth = None
+        modem_url = args.url
+        modem_options = config.get(modem_class.FULL_NAME)
+        if modem_options:
+            auth = (modem_options.get('username'), modem_options.get('password'))
+            if not modem_url:
+                modem_url = modem_options.get('url')
+        collector = modem_class(auth=auth, modem_url=modem_url)
+        collector.run()
 
 
 if __name__ == '__main__':
