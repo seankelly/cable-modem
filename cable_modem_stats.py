@@ -176,7 +176,6 @@ class CableModem:
 
     def run(self):
         self._process_modem_status()
-        # self.output_modem_data(modem_stats)
 
     def format_modem_data(self, output_format):
         if output_format == 'json':
@@ -408,6 +407,7 @@ def main():
                 modem_url = modem_options.get('url')
         collector = modem_class(auth=auth, modem_url=modem_url)
         collector.run()
+        print(collector.format_modem_data(args.format))
 
 
 if __name__ == '__main__':
