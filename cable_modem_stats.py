@@ -197,8 +197,11 @@ class CableModem:
             """Format one channel into InfluxDB line protocol."""
             tags = ['%s=%s' % (tag, value)
                     for tag, value in tags.items()]
-            fields = ['%s=%s' % (field, getattr(channel_data, field))
-                      for field in channel_data._fields]
+            fields = []
+            for index, field_name in enumerate(channel_data._fields):
+                value = channel_data[index]
+                if value is not None:
+                    fields.append('{}={}'.format(field_name, value))
             line_protocol = '{measurement},{tags} {fields} {when}'.format(
                 measurement=measurement, when=current_ns,
                 tags=','.join(tags), fields=','.join(fields))
