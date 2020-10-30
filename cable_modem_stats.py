@@ -18,7 +18,8 @@ except ImportError:
     toml = None
 
 
-DownstreamChannel = namedtuple('DownstreamChannel', 'channel_id frequency power snr corrected uncorrectables')
+DownstreamChannel = namedtuple('DownstreamChannel',
+                               'channel_id frequency power snr corrected uncorrectables')
 UpstreamChannel = namedtuple('UpstreamChannel', 'channel_id frequency power snr')
 
 
@@ -278,7 +279,7 @@ class MotorolaMB7621(CableModem):
 
     def needs_authentication(self, page):
         # Login page title:
-        # <title>Motorola Cable Modem : Login</title> 
+        # <title>Motorola Cable Modem : Login</title>
         return 'Login' in page.title.string
 
     def authenticate(self):
@@ -342,7 +343,6 @@ class ModemList:
 
     def _build_list(self):
         members = inspect.getmembers(sys.modules[__name__])
-        modems = []
         for name, obj in members:
             if hasattr(obj, 'FULL_NAME') and hasattr(obj, 'SHORT_NAME'):
                 full_name = obj.FULL_NAME

@@ -5,9 +5,6 @@ import math
 import os.path
 import urllib.parse
 
-import pytest
-import requests
-
 import cable_modem_stats
 
 
@@ -96,12 +93,13 @@ def test_modem(requests_mock):
         'auth': ('username', 'pass1234'),
         'logged_in': False,
     }
+
     def mb7621_request(request, context):
         """An initial requests to the MotoConnection.html page will return the
         login page if nothing has authenticated recently. Return the login page
         until authenticated for the tests.
         """
-        # Modem returns 200 
+        # Modem returns 200
         context.status_code = 200
         print("Request: path={path}, logged in={logged_in}".format(
             path=request.path, logged_in=page_status['logged_in']))
